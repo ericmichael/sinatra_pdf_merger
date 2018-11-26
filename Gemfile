@@ -3,6 +3,7 @@ gem 'sinatra'
 gem 'data_mapper'
 gem 'sinatra-flash'
 gem 'combine_pdf'
+gem 'stripe'
 
 group :development do
   gem "sqlite3-ruby"

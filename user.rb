@@ -15,9 +15,22 @@ class User
     property :email, String
     property :password, String
     property :created_at, DateTime
+    property :role_id, Integer, :default => 1
 
     def login(password)
     	return self.password == password
+    end
+
+    def free?
+        return role_id == 1
+    end
+
+    def pro?
+        return role_id == 2
+    end
+
+    def administrator?
+        return role_id == 3
     end
 end
 

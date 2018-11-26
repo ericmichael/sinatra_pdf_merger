@@ -2,6 +2,12 @@ require "sinatra"
 require 'sinatra/flash'
 require_relative "authentication.rb"
 require "combine_pdf"
+require 'stripe'
+
+set :publishable_key, ENV['PUBLISHABLE_KEY']
+set :secret_key, ENV['SECRET_KEY']
+
+Stripe.api_key = settings.secret_key
 
 #the following urls are included in authentication.rb
 # GET /login
@@ -24,9 +30,15 @@ def signed_in?
 end
 
 def impose_limit!
-	#need classes help
-	flash[:error] = "Error: You have reached the free limit. Please <a href='/upgrade'>upgrade</a> to continue."
-	redirect "/"
+	if reached_limit? && signed_in? && !current_user.pro?
+		flash[:error] = "Error: You have reached the free limit. Please <a href='/upgrade'>upgrade</a> to continue."
+		redirect "/"
+	end
+
+	if reached_limit? && !signed_in?
+		flash[:error] = "Error: You have reached the free limit. Please <a href='/upgrade'>upgrade</a> to continue."
+		redirect "/"
+	end
 end
 
 def load_file1
@@ -73,7 +85,7 @@ def increase_times_used
 	if session[:times_used].nil?
 		session[:times_used] = 1
 	else
-		session[:times_used] != 1
+		session[:times_used] += 1
 	end
 end
 
@@ -102,4 +114,44 @@ post "/merge" do
 	status 200
 	headers 'content-type' => "application/pdf"
 	body merged.to_pdf
+end
+
+get "/upgrade" do
+	authenticate!
+
+	if current_user.pro? || current_user.administrator?
+		flash[:error] = "Error: You are not eligible to upgrade."
+		redirect "/"
+	end
+
+	erb :pay
+end
+
+post "/charge" do
+
+  begin
+	  # Amount in cents
+	  @amount = 500
+
+	  customer = Stripe::Customer.create(
+	    :email => 'customer@example.com',
+	    :source  => params[:stripeToken]
+	  )
+
+	  charge = Stripe::Charge.create(
+	    :amount      => @amount,
+	    :description => 'Sinatra Charge',
+	    :currency    => 'usd',
+	    :customer    => customer.id
+	  )
+	  
+	  current_user.role_id = 2
+	  current_user.save
+
+	  flash[:success] = "Success: You have upgraded to PRO."
+	  redirect "/"
+	rescue Stripe::CardError
+	  flash[:error] = "Error: Please try a new card."
+	  redirect "/"
+	end
 end
